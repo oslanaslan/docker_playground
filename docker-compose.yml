@@ -1,0 +1,13 @@
+version: "3.5"
+services:
+        webapp:
+                image: localhost:5000/webapp:v1
+                build: .
+                ports:
+                        - "8080:5000"
+                environment:
+                        FLASK_ENV: development
+                deploy:
+                        replicas: 4
+        redis:
+                image: "redis:alpine"

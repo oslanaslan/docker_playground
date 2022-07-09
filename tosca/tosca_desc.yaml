@@ -1,0 +1,114 @@
+NOTATION
+
+<type> - insert instance of given type
+a/b/c - insert a or b or c
+field_name* - required field
+name(type) - insert name of tosca node with given type
+---------------------------------------------------------------------------------------
+VNF TEMPLATE
+
+topology_template:
+
+  inputs:
+    <string>: <tosca.InputNode>
+
+  node_templates:
+    <string>: <tosca.nodes.C2Compute>/<tosca.nodes.network.C2Port>/<tosca.nodes.network.Network>/
+              <tosca.nodes.Router>/<tosca.nodes.C2SoftwareComponent>
+
+  outputs:
+    <string>: <tosca.OutputNode>
+
+  policies:
+    - <string>: <tosca.policies.Healing.Zabbix>
+
+---------------------------------------------------------------------------------------
+NODES DECRIPTION
+
+tosca.InputNode:
+  type*: integer/float/string/boolean/list/file # user input
+
+tosca.nodes.C2Compute:
+  capabilities:
+    host:
+      properties:
+        num_cpus*: <integer>
+        disk_size*: <integer> MB/GB # HDD
+        mem_size*: <integer> MB/GB # RAM
+  properties:
+    os_image*: <string> # image name, already loaded to openstack
+    zabbix_configuration: ssh/no # VNFM should configure zabbix with default script through ssh
+                                 # or you configure zabbix_agent by yourself
+
+tosca.nodes.network.C2Port:
+  properties:
+    order: <integer> # eth interface order, starts with 0
+    need_ip: <boolean> # if need floating ip
+    management_port: <boolean> # if you configure vm with ssh, it should have management port
+    in: <boolean>
+    out: <boolean>
+  requirements:
+    - binding*: name(tosca.nodes.C2Compute/tosca.nodes.Router) # port will be attached to tosca node with given name
+    - link*: name(tosca.nodes.network.Network) # name of net to link, not required for in/out ports
+
+tosca.nodes.network.Network:
+  properties:
+    subnet: <string> # format example: 192.168.1.0/24
+
+tosca.nodes.Router:
+  properties:
+    external: <boolean> # if you want to get floating ip router should be external
+
+tosca.nodes.C2SoftwareComponent:
+  properties:
+    lifecycle:
+      create: <tosca.Action>
+      configure: <tosca.Action>
+      delete: <tosca.Action>
+  requirements:
+    - host*: name(tosca.nodes.C2Compute) # host to deploy software on
+
+tosca.Action:
+  inputs:
+    - name(tosca.InputNode) # list of user inputs required to execute this action
+  sequence*:
+    - <tosca.SSH>/<tosca.REST> # action may be ssh or REST
+
+tosca.SSH:
+  type*: ssh
+  sudo: <boolean> # run script with sudo
+  implementation*: <string> # relative path to script(now all scripts are in script folder
+  user: <string> # user name for ssh connection
+  password: <string> # password for ssh connection
+  inputs:
+      - <string> # ssh arguments
+
+tosca.REST:
+  type*: rest
+  url*: <string>
+  data: <dict>
+  method*: put/delete/get/post
+  header: <dict>
+  files:  # transfer files to node
+    name: <string> # path to file>
+
+tosca.OutputNode:
+  value*: <string>
+  type*: url/text/int
+
+tosca.policies.Healing.Zabbix:
+  properties:
+    triggers:
+      - <string> # trigger name or trigger body, registered trigger name ICMP_60
+    targets:
+      - name(tosca.nodes.C2Compute)/name(tosca.nodes.network.Network)/name(tosca.nodes.Router) # list of nodes to monitor
+    default_action: reboot/redeploy
+
+----------------------------------------------------------------------------------------------------------------------
+TOSCA FUNCTIONS (every string may be replaced with composition of tosca functions)
+
+get_input: name(tosca.InputNode) # return input value set by user
+
+get_attribute: [name(tosca.nodes.network.C2Port), ip_address/floating_ip] # return ip addressed defined after deploy
+
+concat: [<string>, <string>] # concat strings

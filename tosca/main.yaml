@@ -1,0 +1,130 @@
+topology_template:
+  inputs:
+    user_name: vnf-ashabokov
+    password: vnf-aslan
+    change_user_path: scripts/change_user.sh
+    install_path: scripts/install.sh
+    ext_url: 192.168.1.10:10407
+     
+
+  node_templates:
+    webmin:
+      type: tosca.nodes.C2SoftwareComponent
+      requirements:
+        host: server
+      properties:
+        lifecycle:
+          create: run_install
+           
+          configure: run_change_user
+
+
+    run_install:
+      type: tosca.Action
+      inputs:
+        - server
+      sequence:
+        - ssh_install
+
+
+    run_change_user:
+      type: tosca.Action
+      input:
+        - server
+      sequence:
+        - ssh_change_user
+
+
+    ssh_install:
+      type: tosca.SSH
+      sudo: true
+      implementation: { get_input: install_path }
+      user: { get_input: user_name }
+      password: { get_input: password }
+
+
+    ssh_change_user:
+      type: tosca.SSH
+      sudo: true
+      implementation: { get_input: change_user_path }
+      user: { get_input: user_name }
+      password: { get_input: password }
+            
+
+    server:
+      type: tosca.nodes.C2Compute
+      capabilities:
+        host:
+          properties:
+            num_cpus: 1
+            disk_size: 20 GB
+            mem_size: 2 GB
+          
+      properties:
+        os_image: ubuntu_16
+        zabbix_configuration: ssh
+        
+
+    port1:
+      type: tosca.nodes.network.Port
+      properties:
+        order: 1
+        need_ip: true
+        management_port: true
+        in: true
+        out: true
+      requirements:
+        binding: server
+
+
+    ext_net:
+      type: tosca.nodes.network.Network
+      properties:
+        subnet: 192.168.1.0/24
+
+    web_int_port:
+      type: tosca.nodes.network.C2Port
+      properties:
+        order: 0
+        need_ip: true
+        management_port: true
+        in: true
+        out: true
+      requirements:
+        binding: server
+       
+
+    ext_router:
+      type: tosca.nodes.Router
+      properties:
+        external: true
+
+    router_port:
+      type: tosca.nodes.network.Port
+      properties:
+        order: 2
+        need_ip: true
+        management_port: false
+        in: true
+        out: true
+      requirements:
+        binding: ext_router
+        
+
+    out_url:
+      type: tosca.OutputNode
+      value: { get_input: ext_url }
+
+
+  outputs:
+    ip:
+      value: out_url
+
+
+  policies:
+    - icmp_policy:
+      type: tosca.policies.Healing.Zabbix
+      properties:
+        triggers: [ICMP_60]
+        targets: server
+        default_action: reboot

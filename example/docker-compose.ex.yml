@@ -1,0 +1,39 @@
+version: "3.5"
+
+networks:
+    front-end:
+    mining:
+    back-end:
+
+services:
+    rng:
+        image: localhost:5000/rng:${RNG_TAG-v1}
+        networks:
+            - mining
+        deploy:
+            mode: global
+
+    hasher:
+        image: localhost:5000/hasher:${HASHER_TAG-v1}
+        networks:
+            - mining
+
+    worker:
+        image: localhost:5000/worker:${WORKER_TAG-v1}
+        networks:
+            - mining
+            - back-end
+
+    webui:
+        image: localhost:5000/webui:${WEBUI_TAG-v1}
+        networks:
+            - front-end
+            - back-end
+        ports:
+            - target: 80
+              published: 8000
+
+    redis:
+        image: redis
+        networks:
+            - back-end
